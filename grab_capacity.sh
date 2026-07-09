@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# grab_capacity.sh — poll GCP Compute Engine for on-demand capacity and grab it.
+# grab_capacity.sh: poll GCP Compute Engine for on-demand capacity and grab it.
 #
 # Repeatedly attempts to create ONE instance across the given machine types x zones
 # until one succeeds, sleeping --delay between attempts. On the first success the
@@ -43,6 +43,13 @@ Example:
 EOF
 }
 
+need_value() {
+  if [[ $# -lt 2 || "$2" == --* ]]; then
+    echo "ERROR: $1 requires a value" >&2
+    exit 2
+  fi
+}
+
 MACHINE_TYPES=""
 ZONES_CSV=""
 DELAY=""
@@ -50,13 +57,13 @@ MAX_ATTEMPTS="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --machine-types)   MACHINE_TYPES="$2"; shift 2 ;;
+    --machine-types)   need_value "$@"; MACHINE_TYPES="$2"; shift 2 ;;
     --machine-types=*) MACHINE_TYPES="${1#*=}"; shift ;;
-    --zones)           ZONES_CSV="$2"; shift 2 ;;
+    --zones)           need_value "$@"; ZONES_CSV="$2"; shift 2 ;;
     --zones=*)         ZONES_CSV="${1#*=}"; shift ;;
-    --delay)           DELAY="$2"; shift 2 ;;
+    --delay)           need_value "$@"; DELAY="$2"; shift 2 ;;
     --delay=*)         DELAY="${1#*=}"; shift ;;
-    --max-attempts)    MAX_ATTEMPTS="$2"; shift 2 ;;
+    --max-attempts)    need_value "$@"; MAX_ATTEMPTS="$2"; shift 2 ;;
     --max-attempts=*)  MAX_ATTEMPTS="${1#*=}"; shift ;;
     -h|--help)         usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; echo; usage >&2; exit 2 ;;
@@ -94,7 +101,7 @@ echo "On first success the instance is LEFT RUNNING. Ctrl-C to stop."
 echo
 
 attempt=0
-errors_in_row=0
+blocked_in_row=0
 while true; do
   for mt in "${MTYPES[@]}"; do
     for zone in "${ZONES[@]}"; do
@@ -110,7 +117,7 @@ while true; do
 machine_type = "$mt"
 zone         = "$zone"
 EOF
-        echo "GOT IT ✅"
+        echo "GOT IT"
         echo
         echo "Secured capacity after $attempt attempt(s):"
         terraform output 2>/dev/null | sed 's/^/  /'
@@ -123,21 +130,23 @@ EOF
 
       if grep -qiE "does not have enough resources|ZONE_RESOURCE_POOL_EXHAUSTED|stockout" "$LOG"; then
         echo "STOCKOUT"
-        errors_in_row=0
+        blocked_in_row=0
       elif grep -qiE "quota|QUOTA_EXCEEDED" "$LOG"; then
-        echo "QUOTA (needs an increase; will keep trying other targets)"
-        errors_in_row=0
+        echo "QUOTA (needs an increase)"
+        blocked_in_row=$((blocked_in_row + 1))
       else
         echo "ERROR:"
         tail -4 "$LOG" | sed 's/^/      /'
-        errors_in_row=$((errors_in_row + 1))
-        if [[ $errors_in_row -ge $TOTAL_COMBOS ]]; then
-          echo
-          echo "Every target errored for a full cycle — this looks like a configuration or"
-          echo "permission problem, not a capacity one. Stopping so you can fix it and re-run."
-          rm -f "$LOG"
-          exit 1
-        fi
+        blocked_in_row=$((blocked_in_row + 1))
+      fi
+
+      if [[ $blocked_in_row -ge $TOTAL_COMBOS ]]; then
+        echo
+        echo "Every target hit quota or errored for a full cycle. This looks like a"
+        echo "configuration, permission, or quota problem, not a capacity one."
+        echo "Stopping so you can fix it and re-run."
+        rm -f "$LOG"
+        exit 1
       fi
 
       if [[ "$MAX_ATTEMPTS" -gt 0 && "$attempt" -ge "$MAX_ATTEMPTS" ]]; then

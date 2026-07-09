@@ -118,9 +118,13 @@ finished**, since an idle reservation keeps billing.
 
 - **Terraform** 1.5 or newer (for `grab_capacity.sh`) and **gcloud** (for
   `grab_reservations.sh`), both on your `PATH`.
-- Signed in with permission to create instances and reservations:
+- Signed in with permission to create instances and reservations. Terraform uses
+  Application Default Credentials; `gcloud` commands use the active gcloud
+  account:
   ```bash
   gcloud auth application-default login
+  gcloud auth login
+  gcloud config set project PROJECT_ID
   ```
 - **Subnets that already exist**, one per region you want to try. These tools don't
   create networking for you. Use full self-links for Shared VPC.
@@ -129,8 +133,8 @@ finished**, since an idle reservation keeps billing.
 
 ## Notes and safety
 
-- N4 and C4 automatically get a Hyperdisk Balanced boot disk; everything else uses
-  `pd-balanced`.
+- N4 and C4 machine families automatically get a Hyperdisk Balanced boot disk;
+  everything else uses `pd-balanced`.
 - Instances come up with **no external IP** by default and reach the internet
   through Cloud NAT. Set `assign_external_ip` if you need one.
 - `grab_capacity.sh` stops on its own if **every** target fails for a whole cycle,

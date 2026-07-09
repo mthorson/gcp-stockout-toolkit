@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# grab_reservations.sh — secure Compute Engine capacity by creating RESERVATIONS
+# grab_reservations.sh: secure Compute Engine capacity by creating RESERVATIONS
 # for a machine type in a region until a target number are held.
 #
 # Reservations are zonal, so this spreads attempts across the region's zones,
 # creating single-VM reservations one at a time and retrying on STOCKOUT with a
 # delay, until --count are secured. Unlike an on-demand instance, a reservation
-# GUARANTEES the capacity is yours — but it HOLDS that capacity and incurs cost
+# GUARANTEES the capacity is yours, but it HOLDS that capacity and incurs cost
 # until you delete it (whether or not a VM is running against it).
 #
 # Prerequisites:
@@ -47,6 +47,13 @@ Example:
 EOF
 }
 
+need_value() {
+  if [[ $# -lt 2 || "$2" == --* ]]; then
+    echo "ERROR: $1 requires a value" >&2
+    exit 2
+  fi
+}
+
 MACHINE_TYPE=""
 REGION=""
 DELAY=""
@@ -56,17 +63,17 @@ ZONES_CSV=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --machine-type)   MACHINE_TYPE="$2"; shift 2 ;;
+    --machine-type)   need_value "$@"; MACHINE_TYPE="$2"; shift 2 ;;
     --machine-type=*) MACHINE_TYPE="${1#*=}"; shift ;;
-    --region)         REGION="$2"; shift 2 ;;
+    --region)         need_value "$@"; REGION="$2"; shift 2 ;;
     --region=*)       REGION="${1#*=}"; shift ;;
-    --delay)          DELAY="$2"; shift 2 ;;
+    --delay)          need_value "$@"; DELAY="$2"; shift 2 ;;
     --delay=*)        DELAY="${1#*=}"; shift ;;
-    --count)          TARGET="$2"; shift 2 ;;
+    --count)          need_value "$@"; TARGET="$2"; shift 2 ;;
     --count=*)        TARGET="${1#*=}"; shift ;;
-    --project)        PROJECT="$2"; shift 2 ;;
+    --project)        need_value "$@"; PROJECT="$2"; shift 2 ;;
     --project=*)      PROJECT="${1#*=}"; shift ;;
-    --zones)          ZONES_CSV="$2"; shift 2 ;;
+    --zones)          need_value "$@"; ZONES_CSV="$2"; shift 2 ;;
     --zones=*)        ZONES_CSV="${1#*=}"; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; echo; usage >&2; exit 2 ;;
@@ -123,6 +130,8 @@ echo "  delay         : ${DELAY}s after a failed attempt"
 echo
 
 attempt=0
+blocked_in_row=0
+total_zones=${#ZONES[@]}
 while (( created < TARGET )); do
   for zone in "${ZONES[@]}"; do
     (( created >= TARGET )) && break
@@ -134,23 +143,35 @@ while (( created < TARGET )); do
                --project "$PROJECT" --zone "$zone" \
                --vm-count 1 --machine-type "$MACHINE_TYPE" 2>&1); then
       created=$((created + 1))
+      blocked_in_row=0
       echo "$name $zone" >> "$RECORD"
-      echo "RESERVED ✅  ($created/$TARGET)"
-      continue   # no delay after a success — keep accumulating
+      echo "RESERVED ($created/$TARGET)"
+      continue   # no delay after a success, keep accumulating
     fi
 
     if grep -qiE "does not have enough resources|ZONE_RESOURCE_POOL_EXHAUSTED|stockout" <<<"$out"; then
       echo "STOCKOUT"
+      blocked_in_row=0
     elif grep -qiE "quota|QUOTA_EXCEEDED|exceeded limit" <<<"$out"; then
       echo "QUOTA (needs an increase)"
+      blocked_in_row=$((blocked_in_row + 1))
     else
       echo "ERROR:"
       echo "$out" | tail -3 | sed 's/^/      /'
+      blocked_in_row=$((blocked_in_row + 1))
+    fi
+
+    if [[ $blocked_in_row -ge $total_zones ]]; then
+      echo
+      echo "Every zone hit quota or errored for a full cycle. This looks like a"
+      echo "configuration, permission, or quota problem, not a capacity one."
+      print_summary
+      exit 1
     fi
     sleep "$DELAY"
   done
 done
 
 echo
-echo "Done — secured $TARGET reservation(s) 🎉"
+echo "Done: secured $TARGET reservation(s)"
 print_summary
