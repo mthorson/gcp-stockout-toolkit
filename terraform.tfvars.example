@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in for your environment.
+
+project_id = "YOUR_PROJECT_ID"
+
+# One subnetwork per region you plan to try zones in. Use the FULL self-link when
+# these subnets live in a Shared VPC host project (replace HOST_PROJECT and names).
+subnetworks = {
+  "us-central1" = "projects/HOST_PROJECT/regions/us-central1/subnetworks/SUBNET_NAME"
+  "us-east1"    = "projects/HOST_PROJECT/regions/us-east1/subnetworks/SUBNET_NAME"
+  "us-west1"    = "projects/HOST_PROJECT/regions/us-west1/subnetworks/SUBNET_NAME"
+}
+
+# ---- Optional overrides (defaults shown) ----
+# boot_image            = "debian-cloud/debian-12"
+# disk_size_gb          = 50
+# disk_type             = ""            # "" = auto (Hyperdisk for N4/C4, pd-balanced otherwise)
+# name_prefix           = "capacity-grab"
+# assign_external_ip    = false
+# service_account_email = "runner@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+# network_tags          = ["capacity-grab"]
+# labels                = { purpose = "capacity-grab" }
