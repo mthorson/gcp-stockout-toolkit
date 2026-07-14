@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: "1.15.2"
+          terraform_wrapper: false
+      - name: Check shell scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          bash -n lib/common.sh grab_capacity.sh grab_reservations.sh release_capacity.sh release_reservations.sh tests/test_scripts.sh tests/live_smoke.sh
+          shellcheck lib/common.sh grab_capacity.sh grab_reservations.sh release_capacity.sh release_reservations.sh tests/test_scripts.sh tests/live_smoke.sh
+      - name: Run script tests
+        run: tests/test_scripts.sh
+      - name: Check Terraform formatting
+        run: terraform fmt -check -diff
+      - name: Validate Terraform
+        run: |
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color

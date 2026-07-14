@@ -1,0 +1,12 @@
+# Flags override values loaded from this file.
+machine_type=n2-highmem-64
+region=us-central1
+zones=us-central1-a,us-central1-b
+delay=30
+max_delay=900
+max_attempts=0
+count=4
+project=YOUR_PROJECT_ID
+specific=false
+# record=reservations-my-job.txt
+check_only=false

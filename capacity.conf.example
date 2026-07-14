@@ -1,0 +1,8 @@
+# Flags override values loaded from this file.
+machine_types=n2-highmem-64,c3-highmem-88
+zones=us-central1-a,us-central1-b
+delay=30
+max_delay=900
+max_attempts=0
+run_id=my-capacity-run
+check_only=false

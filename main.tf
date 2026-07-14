@@ -1,5 +1,8 @@
 terraform {
   required_version = ">= 1.5"
+
+  backend "local" {}
+
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -69,8 +72,19 @@ variable "name_prefix" {
   default     = "capacity-grab"
 }
 
+variable "run_id" {
+  description = "Optional run identifier included in the instance name."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.run_id == "" || can(regex("^[a-z0-9][a-z0-9-]{0,31}$", var.run_id))
+    error_message = "run_id must be 1-32 lowercase letters, digits, or hyphens."
+  }
+}
+
 variable "assign_external_ip" {
-  description = "Attach an ephemeral external IP. Default false (egress via Cloud NAT)."
+  description = "Attach an ephemeral external IP. Default false; private egress must already exist."
   type        = bool
   default     = false
 }
@@ -123,7 +137,12 @@ locals {
 
   # Descriptive name when we have a target; a bare (valid) prefix otherwise so a
   # var-less `terraform destroy` before any success doesn't fail name validation.
-  instance_name = (var.machine_type != "" && var.zone != "") ? "${var.name_prefix}-${replace(var.machine_type, ".", "-")}-${var.zone}" : var.name_prefix
+  instance_name_raw = join("-", compact([
+    var.name_prefix,
+    var.run_id,
+    var.machine_type != "" ? replace(var.machine_type, ".", "-") : ""
+  ]))
+  instance_name = trim(substr(local.instance_name_raw, 0, min(63, length(local.instance_name_raw))), "-")
 }
 
 resource "google_compute_instance" "grab" {

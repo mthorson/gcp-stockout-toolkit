@@ -2,6 +2,12 @@
 terraform.tfvars
 *.auto.tfvars
 reservations-*.txt
+reservations-*.jsonl
+reservations-*.lock
+capacity.conf
+reservations.conf
 *.tfstate
 *.tfstate.*
 crash.log
+.runs/
+.live-tests/

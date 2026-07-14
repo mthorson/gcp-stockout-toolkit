@@ -15,6 +15,7 @@ subnetworks = {
 # disk_size_gb          = 50
 # disk_type             = ""            # "" = auto (Hyperdisk for N4/C4, pd-balanced otherwise)
 # name_prefix           = "capacity-grab"
+# run_id                = ""            # set automatically by grab_capacity.sh
 # assign_external_ip    = false
 # service_account_email = "runner@YOUR_PROJECT_ID.iam.gserviceaccount.com"
 # network_tags          = ["capacity-grab"]
